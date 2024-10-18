@@ -1,4 +1,4 @@
-module github.com/mwasilew2/echo-gql-casbin-rbac-example
+module github.com/mwasilew2/echo-gqlgen-casbin-rbac-example
 
 go 1.23.0
 
