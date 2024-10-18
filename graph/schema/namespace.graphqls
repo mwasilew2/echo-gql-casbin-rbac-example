@@ -1,0 +1,10 @@
+type Namespace {
+    id: ID!
+    name: String!
+    account: Account!
+}
+
+input NewNamespace {
+    name: String!
+}
+

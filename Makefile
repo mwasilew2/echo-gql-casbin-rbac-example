@@ -17,3 +17,7 @@ run-migrations:
 create-migration:
 	@echo "Creating migration..."
 	@migrate create -ext sql -dir db/migrations -seq $(NAME)
+
+.PHONY run-dev:
+run-dev:
+	@go run ./... server

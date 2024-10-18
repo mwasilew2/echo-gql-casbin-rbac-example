@@ -1,0 +1,12 @@
+type Stack {
+    id: ID!
+    name: String!
+    namespace: Namespace!
+    account: Account!
+}
+
+input NewStack {
+    name: String!
+    namespaceId: String!
+}
+

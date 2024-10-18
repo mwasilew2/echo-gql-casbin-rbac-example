@@ -1,0 +1,9 @@
+type Account {
+    id: ID!
+    name: String!
+}
+
+input NewAccount {
+    name: String!
+}
+

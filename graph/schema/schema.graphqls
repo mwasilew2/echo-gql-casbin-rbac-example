@@ -1,0 +1,13 @@
+type Query {
+    account: Account!
+    namespaces: [Namespace!]!
+    stacks: [Stack!]!
+    user: User!
+}
+
+type Mutation {
+    createAccount(input: NewAccount!): Account!
+    createNamespace(input: NewNamespace!): Namespace!
+    createStack(input: NewStack!): Stack!
+    createUser(input: NewUser!): User!
+}
