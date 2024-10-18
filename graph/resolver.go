@@ -1,19 +1,30 @@
 package graph
 
-//go:generate go run github.com/99designs/gqlgen generate
+//go:generate go run generate.go
 
-import "gorm.io/gorm"
+import (
+	"log/slog"
+
+	"gorm.io/gorm"
+
+	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/util"
+)
 
 // This file will not be regenerated automatically.
 //
 // It serves as dependency injection for your app, add any dependencies you require here.
 
 type Resolver struct {
-	db *gorm.DB
+	db          *gorm.DB
+	logger      *slog.Logger
+	ulidManager *util.UlidManager
 }
 
-func NewResolver(db *gorm.DB) *Resolver {
+func NewResolver(db *gorm.DB, logger *slog.Logger, ulidManager *util.UlidManager) *Resolver {
+	logger = logger.With("subcomponent", "graph/Resolver")
 	return &Resolver{
-		db: db,
+		db:     db,
+		logger: logger,
+		ulidManager: ulidManager,
 	}
 }

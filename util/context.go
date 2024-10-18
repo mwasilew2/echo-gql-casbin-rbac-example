@@ -1,6 +1,10 @@
 package util
 
-var CtxKeyAccountId = &contextKey{"accountID"}
+const SessionKeyCookieKey = "session"
+const SessionKeyAccountID = "account_id"
+const SessionKeyUserID = "user_id"
+
+var CtxKeyEchoContext = &contextKey{"echoContext"}
 
 type contextKey struct {
 	name string

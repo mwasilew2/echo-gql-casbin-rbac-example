@@ -95,3 +95,18 @@ models:
       - github.com/99designs/gqlgen/graphql.Int
       - github.com/99designs/gqlgen/graphql.Int64
       - github.com/99designs/gqlgen/graphql.Int32
+  Account:
+    extraFields:
+      ID:
+        description: "The account's ID"
+        type: uint
+        overrideTags: 'gorm:"primaryKey"'
+  User:
+    extraFields:
+      ID:
+        description: "The user's ID"
+        type: uint
+        overrideTags: 'gorm:"primaryKey"'
+      AccountID:
+        description: "The account's ID"
+        type: uint

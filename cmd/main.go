@@ -20,7 +20,7 @@ type kongApp struct {
 }
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: programLevel}))
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{AddSource: true, Level: programLevel}))
 	slog.SetDefault(logger)
 
 	app := &kongApp{}

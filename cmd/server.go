@@ -13,28 +13,39 @@ import (
 
 	graphqlhandler "github.com/99designs/gqlgen/graphql/handler"
 	graphqlplayground "github.com/99designs/gqlgen/graphql/playground"
+	"github.com/gorilla/sessions"
 	echoprometheus "github.com/labstack/echo-contrib/echoprometheus"
+	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/pkg/errors"
 	slogecho "github.com/samber/slog-echo"
+	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/time/rate"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/graph/model"
+	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/util"
 
 	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/graph"
 )
 
 type serverCmd struct {
 	// cli options
-	HttpAddr   string `help:"address of the http server which the server should listen on" default:":8080"`
-	DbAddr     string `help:"address of the database server" default:"127.0.0.1:5432"`
-	DbPassword string `help:"password for the database server" default:"postgres"`
-	SslMode    string `help:"ssl mode for the database connection" default:"disable"`
+	HttpAddr                 string `help:"address of the http server which the server should listen on" default:":8080"`
+	DbAddr                   string `help:"address of the database server" default:"127.0.0.1:5432"`
+	DbPassword               string `help:"password for the database server" default:"postgres"`
+	SslMode                  string `help:"ssl mode for the database connection" default:"disable"`
+	CookieStoreSigningKey    string `help:"secret key to use for signing cookies" default:"changemechangemechangemechangeme"`
+	CookieStoreEncryptionKey string `help:"secret key to use for encrypting cookies" default:"changemechangemechangemechangeme"`
 
 	// Dependencies
-	logger *slog.Logger
-	db     *gorm.DB
+	logger      *slog.Logger
+	db          *gorm.DB
+	store       *sessions.CookieStore
+	ulidManager *util.UlidManager
 }
 
 func dsn(dbAddr string, dbPassword string, sslMode string) string {
@@ -43,23 +54,26 @@ func dsn(dbAddr string, dbPassword string, sslMode string) string {
 
 func (s *serverCmd) Run(cmdCtx *cmdContext) error {
 	s.logger = cmdCtx.Logger.With("component", "serverCmd")
-	s.logger.Info("Starting the server")
+	s.logger.Info(fmt.Sprintf("starting server on %s", s.HttpAddr))
 
 	var err error
 
 	// Connect to the database
 	psqlDsn := dsn(s.DbAddr, s.DbPassword, s.SslMode)
-	db, err := gorm.Open(postgres.Open(psqlDsn))
+	s.db, err = gorm.Open(postgres.Open(psqlDsn))
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize gorm")
 	}
-	err = db.AutoMigrate()
-	if err != nil {
-		return errors.Wrap(err, "failed to run migrations")
-	}
+
+	// Cookie store
+	s.store = sessions.NewCookieStore([]byte(s.CookieStoreSigningKey), []byte(s.CookieStoreEncryptionKey))
+
+	// ULID manager
+	s.ulidManager = util.NewUlidManager()
 
 	// graphql
-	graphqlHandler := graphqlhandler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: graph.NewResolver(s.db)}))
+	graphResolver := graph.NewResolver(s.db, s.logger, s.ulidManager)
+	graphqlHandler := graphqlhandler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: graphResolver}))
 	playgroundHandler := graphqlplayground.Handler("GraphQL playground", "/query")
 
 	// initialize echo
@@ -76,15 +90,39 @@ func (s *serverCmd) Run(cmdCtx *cmdContext) error {
 	e.Use(slogecho.NewWithConfig(s.logger.With("subcomponent", "echo"), slogEchoConfig))
 	e.Use(middleware.Recover())
 	e.Use(echoprometheus.NewMiddleware("echo"))
+	e.Use(middleware.Secure()) // protects from xss, clickjacking, etc
+	e.Use(session.Middleware(s.store))
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			sess, err := session.Get(util.SessionKeyCookieKey, c)
+			if err != nil {
+				s.logger.Error("failed to get session", "err", err)
+				return echo.NewHTTPError(http.StatusBadRequest, "failed to get session")
+			}
+			s.logger.Debug("checking session", "userid", sess.Values[util.SessionKeyUserID])
+			return next(c)
+		}
+	})
+	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(rate.Limit(20)))) // per second, per IP  //TODO: make it per username in session, not per IP or per account
+	e.Use(middleware.BodyLimit("2M"))
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			echoCtx := context.WithValue(c.Request().Context(), util.CtxKeyEchoContext, c)
+			c.SetRequest(c.Request().WithContext(echoCtx))
+			return next(c)
+		}
+	})
 
 	// admin routes
 	e.GET("/metrics", echoprometheus.NewHandler())
 	e.GET("/debug/*", echo.WrapHandler(http.DefaultServeMux))
 	e.GET("/healthz", s.Healthz)
-	e.GET("/favicon.ico", echo.NotFoundHandler)
 
-	// plain http routes
+	// http routes
 	e.GET("/ping", s.Ping)
+	e.GET("/favicon.ico", echo.NotFoundHandler)
+	e.GET("/login", s.Login)
+	e.POST("/signup", s.Signup)
 
 	// graphql routes
 	e.GET("/playground", echo.WrapHandler(playgroundHandler))
@@ -112,4 +150,95 @@ func (s *serverCmd) Healthz(c echo.Context) error {
 
 func (s *serverCmd) Ping(c echo.Context) error {
 	return c.String(200, "pong")
+}
+
+func (s *serverCmd) Signup(c echo.Context) error {
+	// parse input
+	inputUsername := c.FormValue("username")
+	inputPassword := c.FormValue("password")
+	inputAccountName := c.FormValue("accountname")
+	s.logger.Debug("signup request", "username", inputUsername)
+	if inputUsername == "" || inputPassword == "" || inputAccountName == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "username, password and accountname are required")
+	}
+
+	// hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(inputPassword), bcrypt.DefaultCost)
+	if err != nil {
+		s.logger.Error("bcrypt hash error", "err", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to hash password")
+	}
+
+	// create user and account in the database
+	newAccount := &model.Account{
+		Ulid: s.ulidManager.NewULID().String(),
+		Name: inputAccountName,
+	}
+	err = s.db.Create(&newAccount).Error
+	if err != nil {
+		s.logger.Error("failed to create account", "err", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "internal error")
+	}
+	user := &model.User{
+		Ulid:     s.ulidManager.NewULID().String(),
+		Username: inputUsername,
+		Password: string(hashedPassword),
+		Account:  newAccount,
+	}
+	err = s.db.Create(&user).Error
+	if err != nil {
+		s.logger.Error("failed to create user", "err", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create user")
+	}
+	s.logger.Debug("created user", "username", user.Username)
+
+	return nil
+}
+
+func (s *serverCmd) Login(c echo.Context) error {
+	// parse input
+	inputUsername := c.FormValue("username")
+	inputPassword := c.FormValue("password")
+	s.logger.Debug("login request", "username", inputUsername)
+	if inputUsername == "" || inputPassword == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "username and password are required")
+	}
+
+	// find user in the database
+	u := &model.User{}
+	err := s.db.
+		Preload("Account").
+		Where("username = ?", inputUsername).
+		First(u).Error
+	if err != nil {
+		s.logger.Debug("failed to find user", "err", err)
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid username or password")
+	}
+
+	// compare password hashes
+	err = bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(inputPassword))
+	if err != nil {
+		// Unauthorized
+		s.logger.Debug("bcrypt compare error", "err", err)
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid username or password")
+	}
+
+	// create session
+	session, _ := s.store.Get(c.Request(), util.SessionKeyCookieKey) // this func returns an error when a session is created
+	session.Options = &sessions.Options{
+		MaxAge: 86400 * 7, // 1 week
+	}
+
+	if u.Account != nil {
+		session.Values[util.SessionKeyAccountID] = u.Account.Ulid
+	}
+	session.Values[util.SessionKeyUserID] = u.ID
+
+	err = session.Save(c.Request(), c.Response())
+	if err != nil {
+		s.logger.Error("failed to save session", "err", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to save session")
+	}
+
+	return nil
 }

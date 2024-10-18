@@ -1,5 +1,5 @@
 type Stack {
-    id: ID!
+    ulid: ID!
     name: String!
     namespace: Namespace!
     account: Account!

@@ -1,5 +1,5 @@
 type Namespace {
-    id: ID!
+    ulid: ID!
     name: String!
     account: Account!
 }

@@ -1,5 +1,5 @@
 type Account {
-    id: ID!
+    ulid: ID!
     name: String!
 }
 

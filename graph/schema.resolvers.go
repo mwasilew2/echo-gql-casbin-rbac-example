@@ -7,8 +7,13 @@ package graph
 import (
 	"context"
 	"fmt"
+	"net/http"
+
+	"github.com/labstack/echo-contrib/session"
+	echo "github.com/labstack/echo/v4"
 
 	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/graph/model"
+	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/util"
 )
 
 // CreateAccount is the resolver for the createAccount field.
@@ -26,14 +31,41 @@ func (r *mutationResolver) CreateStack(ctx context.Context, input model.NewStack
 	panic(fmt.Errorf("not implemented: CreateStack - createStack"))
 }
 
-// CreateUser is the resolver for the createUser field.
-func (r *mutationResolver) CreateUser(ctx context.Context, input model.NewUser) (*model.User, error) {
-	panic(fmt.Errorf("not implemented: CreateUser - createUser"))
-}
-
 // Account is the resolver for the account field.
 func (r *queryResolver) Account(ctx context.Context) (*model.Account, error) {
-	panic(fmt.Errorf("not implemented: Account - account"))
+	// extract echo context
+	echoCtx := ctx.Value(util.CtxKeyEchoContext)
+	if echoCtx == nil {
+		r.logger.Error("No echo context in context")
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Internal error")
+	}
+	ec, ok := echoCtx.(echo.Context)
+	if !ok {
+		r.logger.Error("Echo context in context is not an echo.Context")
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Internal error")
+	}
+
+	// extract user from session
+	sess, err := session.Get(util.SessionKeyCookieKey, ec)
+	if err != nil {
+		r.logger.Error("Error getting session", "error", err)
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Error getting session")
+	}
+	userID, userExists := sess.Values[util.SessionKeyUserID]
+	if !userExists {
+		r.logger.Debug("No user ID in session")
+		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Not logged in")
+	}
+	r.logger.Debug("Got user ID from session", "userID", userID)
+	accountID, accountExists := sess.Values[util.SessionKeyAccountID]
+	if !accountExists {
+		r.logger.Debug("No account ID in session")
+		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Not logged in")
+	}
+
+	return &model.Account{
+		Ulid: accountID.(string),
+	}, nil
 }
 
 // Namespaces is the resolver for the namespaces field.
@@ -44,11 +76,6 @@ func (r *queryResolver) Namespaces(ctx context.Context) ([]*model.Namespace, err
 // Stacks is the resolver for the stacks field.
 func (r *queryResolver) Stacks(ctx context.Context) ([]*model.Stack, error) {
 	panic(fmt.Errorf("not implemented: Stacks - stacks"))
-}
-
-// User is the resolver for the user field.
-func (r *queryResolver) User(ctx context.Context) (*model.User, error) {
-	panic(fmt.Errorf("not implemented: User - user"))
 }
 
 // Mutation returns MutationResolver implementation.
