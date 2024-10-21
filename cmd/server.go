@@ -13,6 +13,7 @@ import (
 
 	graphqlhandler "github.com/99designs/gqlgen/graphql/handler"
 	graphqlplayground "github.com/99designs/gqlgen/graphql/playground"
+	"github.com/casbin/casbin/v2"
 	"github.com/gorilla/sessions"
 	echoprometheus "github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo-contrib/session"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/graph/model"
 	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/middleware"
+	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/service/authorization"
 	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/util"
 
 	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/graph"
@@ -43,10 +45,11 @@ type serverCmd struct {
 	CookieStoreEncryptionKey string `help:"secret key to use for encrypting cookies" default:"changemechangemechangemechangeme"`
 
 	// Dependencies
-	logger      *slog.Logger
-	db          *gorm.DB
-	store       *sessions.CookieStore
-	ulidManager *util.UlidManager
+	logger               *slog.Logger
+	db                   *gorm.DB
+	store                *sessions.CookieStore
+	ulidManager          *util.UlidManager
+	authorizationService authorization.Authorization
 }
 
 func dsn(dbAddr string, dbPassword string, sslMode string) string {
@@ -73,17 +76,19 @@ func (s *serverCmd) Run(cmdCtx *cmdContext) error {
 	s.ulidManager = util.NewUlidManager()
 
 	// Authorization service
-	//casbinEnforcer, err := casbin.NewEnforcer("casbin_model.conf", "casbin_policy.csv")
-	// TODO: use an in-memory store for policies
-	// TODO: use more sophisticated models: https://github.com/casbin/casbin/tree/master/examples
+	casbinEnforcer, err := casbin.NewEnforcer("rbac_with_domains_model.conf", "rbac_with_domains_policy.csv")
+	// TODO: use gorm for storing policies: https://github.com/casbin/gorm-adapter
+	// TODO: expose casbin policy creation through an API
+	// TODO: use more sophisticated casbin models: https://github.com/casbin/casbin/tree/master/examples
 	// TODO: leverage Go type system for referencing resources
-	// TODO: use per resolver hook for authorizing individual fields in the response
-	//if err != nil {
-	//	return errors.Wrap(err, "failed to initialize casbin enforcer")
-	//}
+	if err != nil {
+		return errors.Wrap(err, "failed to initialize casbin enforcer")
+	}
+	authorizationService := authorization.NewCasbinAuthorizationService(casbinEnforcer)
+	s.authorizationService = authorizationService
 
 	// graphql
-	graphResolver := graph.NewResolver(s.db, s.logger, s.ulidManager)
+	graphResolver := graph.NewResolver(s.db, s.logger, s.ulidManager, s.authorizationService)
 	graphqlHandler := graphqlhandler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: graphResolver}))
 	playgroundHandler := graphqlplayground.Handler("GraphQL playground", "/query")
 

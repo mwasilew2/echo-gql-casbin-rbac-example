@@ -5,6 +5,7 @@ go 1.23.0
 require (
 	github.com/99designs/gqlgen v0.17.55
 	github.com/alecthomas/kong v1.2.1
+	github.com/casbin/casbin/v2 v2.87.1
 	github.com/gorilla/sessions v1.2.2
 	github.com/labstack/echo-contrib v0.17.1
 	github.com/labstack/echo/v4 v4.12.0
@@ -21,6 +22,7 @@ require (
 require (
 	github.com/agnivade/levenshtein v1.1.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/casbin/govaluate v1.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
