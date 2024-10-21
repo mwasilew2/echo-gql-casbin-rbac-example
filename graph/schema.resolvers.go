@@ -34,19 +34,14 @@ func (r *mutationResolver) CreateStack(ctx context.Context, input model.NewStack
 // Account is the resolver for the account field.
 func (r *queryResolver) Account(ctx context.Context) (*model.Account, error) {
 	// extract echo context
-	echoCtx := ctx.Value(util.CtxKeyEchoContext)
-	if echoCtx == nil {
-		r.logger.Error("No echo context in context")
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Internal error")
-	}
-	ec, ok := echoCtx.(echo.Context)
-	if !ok {
-		r.logger.Error("Echo context in context is not an echo.Context")
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Internal error")
+	ec, err := util.ExtractEchoContext(ctx)
+	if err != nil {
+		r.logger.Error("Error getting echo context", "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
 	}
 
 	// extract user from session
-	sess, err := session.Get(util.SessionKeyCookieKey, ec)
+	sess, err := session.Get(util.CookieKeySessionName, ec)
 	if err != nil {
 		r.logger.Error("Error getting session", "error", err)
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Error getting session")

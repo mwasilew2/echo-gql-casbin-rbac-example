@@ -17,7 +17,7 @@ import (
 	echoprometheus "github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/pkg/errors"
 	slogecho "github.com/samber/slog-echo"
 	"golang.org/x/crypto/bcrypt"
@@ -27,6 +27,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/graph/model"
+	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/middleware"
 	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/util"
 
 	"github.com/mwasilew2/echo-gqlgen-casbin-rbac-example/graph"
@@ -88,13 +89,13 @@ func (s *serverCmd) Run(cmdCtx *cmdContext) error {
 		WithUserAgent: true,
 	}
 	e.Use(slogecho.NewWithConfig(s.logger.With("subcomponent", "echo"), slogEchoConfig))
-	e.Use(middleware.Recover())
+	e.Use(echomiddleware.Recover())
 	e.Use(echoprometheus.NewMiddleware("echo"))
-	e.Use(middleware.Secure()) // protects from xss, clickjacking, etc
+	e.Use(echomiddleware.Secure()) // protects from xss, clickjacking, etc
 	e.Use(session.Middleware(s.store))
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			sess, err := session.Get(util.SessionKeyCookieKey, c)
+			sess, err := session.Get(util.CookieKeySessionName, c)
 			if err != nil {
 				s.logger.Error("failed to get session", "err", err)
 				return echo.NewHTTPError(http.StatusBadRequest, "failed to get session")
@@ -103,15 +104,9 @@ func (s *serverCmd) Run(cmdCtx *cmdContext) error {
 			return next(c)
 		}
 	})
-	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(rate.Limit(20)))) // per second, per IP  //TODO: make it per username in session, not per IP or per account
-	e.Use(middleware.BodyLimit("2M"))
-	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			echoCtx := context.WithValue(c.Request().Context(), util.CtxKeyEchoContext, c)
-			c.SetRequest(c.Request().WithContext(echoCtx))
-			return next(c)
-		}
-	})
+	e.Use(echomiddleware.RateLimiter(echomiddleware.NewRateLimiterMemoryStore(rate.Limit(20)))) // per second, per IP  //TODO: make it per username in session, not per IP or per account
+	e.Use(echomiddleware.BodyLimit("2M"))
+	e.Use(middleware.AddEchoContext)
 
 	// admin routes
 	e.GET("/metrics", echoprometheus.NewHandler())
@@ -195,6 +190,9 @@ func (s *serverCmd) Signup(c echo.Context) error {
 	return nil
 }
 
+const OneHourSeconds = 3600   // 1 hour
+const OneWeekSeconds = 604800 // 1 week
+
 func (s *serverCmd) Login(c echo.Context) error {
 	// parse input
 	inputUsername := c.FormValue("username")
@@ -224,15 +222,17 @@ func (s *serverCmd) Login(c echo.Context) error {
 	}
 
 	// create session
-	session, _ := s.store.Get(c.Request(), util.SessionKeyCookieKey) // this func returns an error when a session is created
+	session, _ := s.store.Get(c.Request(), util.CookieKeySessionName) // this func returns an error when a session is created
 	session.Options = &sessions.Options{
-		MaxAge: 86400 * 7, // 1 week
+		MaxAge: OneWeekSeconds,
 	}
 
 	if u.Account != nil {
 		session.Values[util.SessionKeyAccountID] = u.Account.Ulid
 	}
 	session.Values[util.SessionKeyUserID] = u.ID
+
+	s.logger.Debug("found user", "username", u.ID, "account", u.Account.ID)
 
 	err = session.Save(c.Request(), c.Response())
 	if err != nil {
