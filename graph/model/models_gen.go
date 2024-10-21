@@ -27,18 +27,21 @@ type NewNamespace struct {
 }
 
 type NewStack struct {
-	Name        string `json:"name"`
-	NamespaceID string `json:"namespaceId"`
+	Name string `json:"name"`
 }
 
 type Query struct {
 }
 
 type Stack struct {
-	Ulid      string     `json:"ulid"`
-	Name      string     `json:"name"`
-	Namespace *Namespace `json:"namespace"`
-	Account   *Account   `json:"account"`
+	Ulid        string   `json:"ulid"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Account     *Account `json:"account"`
+	// The account's ID
+	AccountID uint `json:"-"`
+	// The stack's ID
+	ID uint `gorm:"primaryKey"`
 }
 
 type User struct {

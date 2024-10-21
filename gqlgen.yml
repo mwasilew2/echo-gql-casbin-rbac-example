@@ -110,3 +110,12 @@ models:
       AccountID:
         description: "The account's ID"
         type: uint
+  Stack:
+    extraFields:
+      ID:
+        description: "The stack's ID"
+        type: uint
+        overrideTags: 'gorm:"primaryKey"'
+      AccountID:
+        description: "The account's ID"
+        type: uint

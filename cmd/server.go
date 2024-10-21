@@ -72,6 +72,16 @@ func (s *serverCmd) Run(cmdCtx *cmdContext) error {
 	// ULID manager
 	s.ulidManager = util.NewUlidManager()
 
+	// Authorization service
+	//casbinEnforcer, err := casbin.NewEnforcer("casbin_model.conf", "casbin_policy.csv")
+	// TODO: use an in-memory store for policies
+	// TODO: use more sophisticated models: https://github.com/casbin/casbin/tree/master/examples
+	// TODO: leverage Go type system for referencing resources
+	// TODO: use per resolver hook for authorizing individual fields in the response
+	//if err != nil {
+	//	return errors.Wrap(err, "failed to initialize casbin enforcer")
+	//}
+
 	// graphql
 	graphResolver := graph.NewResolver(s.db, s.logger, s.ulidManager)
 	graphqlHandler := graphqlhandler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: graphResolver}))

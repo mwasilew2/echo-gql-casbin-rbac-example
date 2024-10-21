@@ -72,10 +72,10 @@ type ComplexityRoot struct {
 	}
 
 	Stack struct {
-		Account   func(childComplexity int) int
-		Name      func(childComplexity int) int
-		Namespace func(childComplexity int) int
-		Ulid      func(childComplexity int) int
+		Account     func(childComplexity int) int
+		Description func(childComplexity int) int
+		Name        func(childComplexity int) int
+		Ulid        func(childComplexity int) int
 	}
 
 	User struct {
@@ -215,19 +215,19 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Stack.Account(childComplexity), true
 
+	case "Stack.description":
+		if e.complexity.Stack.Description == nil {
+			break
+		}
+
+		return e.complexity.Stack.Description(childComplexity), true
+
 	case "Stack.name":
 		if e.complexity.Stack.Name == nil {
 			break
 		}
 
 		return e.complexity.Stack.Name(childComplexity), true
-
-	case "Stack.namespace":
-		if e.complexity.Stack.Namespace == nil {
-			break
-		}
-
-		return e.complexity.Stack.Namespace(childComplexity), true
 
 	case "Stack.ulid":
 		if e.complexity.Stack.Ulid == nil {
@@ -828,8 +828,8 @@ func (ec *executionContext) fieldContext_Mutation_createStack(ctx context.Contex
 				return ec.fieldContext_Stack_ulid(ctx, field)
 			case "name":
 				return ec.fieldContext_Stack_name(ctx, field)
-			case "namespace":
-				return ec.fieldContext_Stack_namespace(ctx, field)
+			case "description":
+				return ec.fieldContext_Stack_description(ctx, field)
 			case "account":
 				return ec.fieldContext_Stack_account(ctx, field)
 			}
@@ -1133,8 +1133,8 @@ func (ec *executionContext) fieldContext_Query_stacks(_ context.Context, field g
 				return ec.fieldContext_Stack_ulid(ctx, field)
 			case "name":
 				return ec.fieldContext_Stack_name(ctx, field)
-			case "namespace":
-				return ec.fieldContext_Stack_namespace(ctx, field)
+			case "description":
+				return ec.fieldContext_Stack_description(ctx, field)
 			case "account":
 				return ec.fieldContext_Stack_account(ctx, field)
 			}
@@ -1361,8 +1361,8 @@ func (ec *executionContext) fieldContext_Stack_name(_ context.Context, field gra
 	return fc, nil
 }
 
-func (ec *executionContext) _Stack_namespace(ctx context.Context, field graphql.CollectedField, obj *model.Stack) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Stack_namespace(ctx, field)
+func (ec *executionContext) _Stack_description(ctx context.Context, field graphql.CollectedField, obj *model.Stack) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Stack_description(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -1375,7 +1375,7 @@ func (ec *executionContext) _Stack_namespace(ctx context.Context, field graphql.
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Namespace, nil
+		return obj.Description, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1387,27 +1387,19 @@ func (ec *executionContext) _Stack_namespace(ctx context.Context, field graphql.
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*model.Namespace)
+	res := resTmp.(string)
 	fc.Result = res
-	return ec.marshalNNamespace2ᚖgithubᚗcomᚋmwasilew2ᚋechoᚑgqlgenᚑcasbinᚑrbacᚑexampleᚋgraphᚋmodelᚐNamespace(ctx, field.Selections, res)
+	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Stack_namespace(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Stack_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Stack",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "ulid":
-				return ec.fieldContext_Namespace_ulid(ctx, field)
-			case "name":
-				return ec.fieldContext_Namespace_name(ctx, field)
-			case "account":
-				return ec.fieldContext_Namespace_account(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Namespace", field.Name)
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3479,7 +3471,7 @@ func (ec *executionContext) unmarshalInputNewStack(ctx context.Context, obj inte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "namespaceId"}
+	fieldsInOrder := [...]string{"name"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -3493,13 +3485,6 @@ func (ec *executionContext) unmarshalInputNewStack(ctx context.Context, obj inte
 				return it, err
 			}
 			it.Name = data
-		case "namespaceId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("namespaceId"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.NamespaceID = data
 		}
 	}
 
@@ -3807,8 +3792,8 @@ func (ec *executionContext) _Stack(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "namespace":
-			out.Values[i] = ec._Stack_namespace(ctx, field, obj)
+		case "description":
+			out.Values[i] = ec._Stack_description(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

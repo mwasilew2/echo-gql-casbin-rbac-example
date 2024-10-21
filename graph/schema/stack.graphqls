@@ -1,12 +1,11 @@
 type Stack {
     ulid: ID!
     name: String!
-    namespace: Namespace!
+    description: String!
     account: Account!
 }
 
 input NewStack {
     name: String!
-    namespaceId: String!
 }
 
