@@ -78,8 +78,10 @@ func (s *serverCmd) Run(cmdCtx *cmdContext) error {
 	// Authorization service
 	casbinEnforcer, err := casbin.NewEnforcer("rbac_with_domains_model.conf", "rbac_with_domains_policy.csv")
 	// TODO: use gorm for storing policies: https://github.com/casbin/gorm-adapter
-	// TODO: expose casbin policy creation through an API
-	// TODO: use more sophisticated casbin models: https://github.com/casbin/casbin/tree/master/examples
+	// TODO: expose casbin policy creation through an API: https://casbin.org/docs/rbac-api/#addrolesforuser
+	// TODO: use a different casbin models (the current one is extremely simple): https://github.com/casbin/casbin/tree/master/examples
+	// TODO: use group membership from SSO: https://github.com/casbin/casbin/issues/929
+	// TODO: test hierarchy of roles within the same account, but different groups: https://github.com/casbin/casbin/issues/493
 	// TODO: leverage Go type system for referencing resources
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize casbin enforcer")
