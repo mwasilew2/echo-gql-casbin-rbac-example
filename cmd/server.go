@@ -83,6 +83,7 @@ func (s *serverCmd) Run(cmdCtx *cmdContext) error {
 	// TODO: use group membership from SSO: https://github.com/casbin/casbin/issues/929
 	// TODO: test hierarchy of roles within the same account, but different groups: https://github.com/casbin/casbin/issues/493
 	// TODO: leverage Go type system for referencing resources
+	// TODO: check out request parsing in casbin middleware for echo: https://echo.labstack.com/docs/middleware/casbin-auth
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize casbin enforcer")
 	}
